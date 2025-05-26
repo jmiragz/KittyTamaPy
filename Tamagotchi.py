@@ -11,6 +11,10 @@ class State(Enum):
 
 state = State.IDLE
 
+hunger_level = 0  # Full is 5, Empty is 0
+HUNGER_INTERVAL = 60 * 1000  # 1 minute in milliseconds
+last_hunger_tick = pygame.time.get_ticks()
+
 #positon variable
 position = ()
 
@@ -134,6 +138,29 @@ def draw_eat_UI():
         y_pos = 240 - new_height
         screen.blit(eatUI, (0, y_pos))
 
+def draw_hunger_bar():
+    global hunger_level
+    hunger_images = [
+        "hungryempty.png",
+        "hungryminus4.png",
+        "hungryminus3.png",
+        "hungryminus2.png",
+        "hungryminus1.png",
+        "hungryfull.png"
+    ]
+    
+    hunger_img = pygame.image.load(hunger_images[hunger_level]).convert_alpha()
+    hunger_img = pygame.transform.scale(hunger_img, (120, 120))  # resize
+    screen.blit(hunger_img, (220, -45))  # right middle
+
+def draw_feed_me_bubble():
+    global hunger_level
+    if hunger_level <= 1 and state == State.IDLE:  # only beg when idle and really hungry
+        feedme_img = pygame.image.load("feedme.png").convert_alpha()
+        feedme_img = pygame.transform.scale(feedme_img, (100, 60))  # size 
+        bubble_x = position[0] + 80  # slightly to the right of kitty
+        bubble_y = position[1] - 40  # floating above kitty
+        screen.blit(feedme_img, (bubble_x, bubble_y))
 
 def draw_sleep_UI():
     if state == State.SLEEP:
@@ -243,6 +270,11 @@ def go_to_eat():
 
     global frame_list
     frame_list = [eat_kitty1, eat_kitty2, eat_kitty3]
+    #hungrey
+    global hunger_level
+    if hunger_level < 5:
+        hunger_level += 1
+        print(f"Yum! Hunger level is now {hunger_level}")
     
 def update_animation(): #drawing on the screen
     global current_frame #need to talk to the variable outside the funciton
@@ -270,6 +302,8 @@ def gameloop():
     global current_frame 
     global  frame_counter
     global background
+    global last_hunger_tick
+    global hunger_level
 # game loop
     go_to_idle()
 
@@ -282,6 +316,14 @@ def gameloop():
 
         check_sleep_time() # dont b caught slippin
         check_eat_time()
+        # Update hunger every 60 seconds
+        current_time = pygame.time.get_ticks()
+        if current_time - last_hunger_tick >= HUNGER_INTERVAL:
+            if hunger_level > 0:
+                hunger_level -= 1
+                print(f"Hungry... level now {hunger_level}")
+            last_hunger_tick = current_time
+
         # background
         screen.fill(background)  # baby pink
 
@@ -291,7 +333,8 @@ def gameloop():
         draw_idle_UI()
         draw_eat_UI()
         draw_sleep_UI()
-
+        draw_hunger_bar()
+        draw_feed_me_bubble()
         # have to call this every loop to actually make your drawings appear
         pygame.display.update()
 
