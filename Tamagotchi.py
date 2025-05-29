@@ -11,12 +11,17 @@ class State(Enum):
 
 state = State.IDLE
 
+#music note setup
+show_music_note = False
+music_note_timer = 0
+
 hunger_level = 0  # Full is 5, Empty is 0
 HUNGER_INTERVAL = 60 * 1000  # 1 minute in milliseconds
 last_hunger_tick = pygame.time.get_ticks()
 
 #positon variable
 position = ()
+kitty_rect = pygame.Rect(70, 70, 128, 128)  # kitty size and position for collison
 
 #variable background
 background = ()
@@ -28,10 +33,23 @@ pygame.init() # ewww british people "INNIT"
 screen = pygame.display.set_mode((340, 240)) # makea da window 240x240 pixels wide
 pygame.display.set_caption("Kitty Tamagotchi") #window title
 
+# music note
+music_note_img = pygame.image.load("musicnote.png").convert_alpha()
+music_note_img = pygame.transform.scale(music_note_img, (96, 96))
+
+# ballstuff
+ball = pygame.image.load("ball.png").convert_alpha()
+ball = pygame.transform.scale(ball, (64, 64))
+rect = ball.get_rect()
+rect.center = (230, 60)
+
+velocity = pygame.math.Vector2(0, 0)
+
 # clock to slow things down
 clock = pygame.time.Clock()
+FPS = 60
 start_time = 0
-timer_duration = 15000 # 15 seconds
+timer_duration = 10000 # 10 seconds
 
 # Set up animation
 frame_list = []
@@ -99,6 +117,7 @@ def check_events():
             if state == State.SLEEP:
                 go_to_idle()
             elif state == State.PLAY:
+                reset_ball()
                 go_to_idle()
             elif state == State.EAT:
                 go_to_idle()
@@ -117,12 +136,18 @@ def go_to_play(): #GAMING
     global background
     background = (216, 191, 216)  # purple
     frame_list = [playkitty1,playkitty1,playkitty1] 
+    # strat the ball bounce when we go to play
+    global kitty_rect
+    position = (70, 70)
+    kitty_rect = pygame.Rect(position[0], position[1], 128, 128)
+    reset_ball()
 
 def ball_bounce():
     if state == State.PLAY:
-        ball = pygame.image.load("ball.png").convert_alpha() # need alpha for transparent images
-        ball = pygame.transform.scale(ball, (64, 64)) 
-        screen.blit(ball, (150, 150))
+        global rect
+        global ball
+        screen.blit(ball, rect)
+
 
 def draw_eat_UI():
     if state == State.EAT:
@@ -204,6 +229,12 @@ def draw_idle_UI():
         y_pos = 240 - new_height
         screen.blit(idleUI, (0, y_pos))
 
+# reset bball
+def reset_ball():
+    global rect, velocity
+    rect.center = (230, 60)
+    velocity = pygame.math.Vector2(-5, 0)  # leftward & no vertical movement initially
+
 # idle function
 
 def go_to_idle(): # I want to update to the sleep GIF
@@ -223,6 +254,8 @@ def go_to_idle(): # I want to update to the sleep GIF
     background = (255, 192, 203)  # baby pink
     global frame_list
     frame_list = [kitty1, kitty2, kitty3] 
+    global kitty_rect
+    kitty_rect = pygame.Rect(position[0], position[1], 128, 128)
 
 # Sleep Stuff
 def go_to_sleep(): # I want to update to the sleep GIF
@@ -235,6 +268,10 @@ def go_to_sleep(): # I want to update to the sleep GIF
     global start_time
     start_time = pygame.time.get_ticks() # start counting
     print("Timer started!")
+
+    global kitty_rect
+    position = (70, 70)
+    kitty_rect = pygame.Rect(position[0], position[1], 128, 128)
 
     background = (137, 207, 240)
     sleepy_kitty1 = pygame.image.load("sleepy_kitty1.png").convert_alpha() # need alpha for transparent images
@@ -304,13 +341,14 @@ def gameloop():
     global background
     global last_hunger_tick
     global hunger_level
+    global show_music_note, music_note_timer
 # game loop
     go_to_idle()
 
     while True: #runs until close window
-        # 30 frames per second
-        clock.tick(30)
-
+        # 60 frames per second
+        clock.tick(60)
+        kitty_rect.topleft = position
         # quit if X is clicked
         check_events()
 
@@ -335,9 +373,44 @@ def gameloop():
         draw_sleep_UI()
         draw_hunger_bar()
         draw_feed_me_bubble()
+
+        if show_music_note:
+            if pygame.time.get_ticks() - music_note_timer < 40:  # .02 second
+                note_x = position[0] + 48  # centered-ish above kitty
+                note_y = position[1] - 32  # floating above
+                screen.blit(music_note_img, (note_x, note_y))
+            else:
+                show_music_note = False  # stop showing after 1 second
+
+
+        if state == State.PLAY:
+            if rect.colliderect(kitty_rect):
+                show_music_note = True
+                music_note_timer = pygame.time.get_ticks()
+
+            velocity.y += 0.2  # gravity
+            rect.x += velocity.x
+            rect.y += velocity.y
+
+            # Bounce off bottom
+            if rect.bottom >= 225:
+                rect.bottom = 225
+                velocity.y *= -0.99  # bounce up with energy loss
+
+            # Bounce off left wall
+            if rect.left <= -15:
+                rect.left = -15
+                velocity.x *= -1  # reverse direction
+
+            # Bounce off right wall
+            if rect.right >= 350:
+                rect.right = 350
+                velocity.x *= -1
+
         # have to call this every loop to actually make your drawings appear
         pygame.display.update()
-
+        #Limit the frame rate
+        clock.tick(FPS)
 
 gameloop()
 
