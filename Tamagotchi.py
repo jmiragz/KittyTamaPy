@@ -15,9 +15,15 @@ state = State.IDLE
 show_music_note = False
 music_note_timer = 0
 
-hunger_level = 0  # Full is 5, Empty is 0
+#hunger
+hunger_level = 0  # full is 5, empty is 0
 HUNGER_INTERVAL = 60 * 1000  # 1 minute in milliseconds
 last_hunger_tick = pygame.time.get_ticks()
+
+#sleepiness
+sleep_level = 1 #full 5, empty 0
+SLEEP_INTERVAL = 60*1000 # 1 min
+last_sleep_tick = pygame.time.get_ticks()
 
 #positon variable
 position = ()
@@ -61,10 +67,14 @@ def check_sleep_time():
     if state != State.SLEEP:
         return
     
-    global start_time
+    global start_time, sleep_level
     elapsed = pygame.time.get_ticks() - start_time
-    if elapsed >= timer_duration:
-        go_to_idle()
+    if elapsed >= SLEEP_INTERVAL:  # every minute (1 minute = 60 * 1000 ms)
+        if sleep_level > 0:  # ensure sleep level doesn't go below 0
+            sleep_level -= 1
+        print(f"Sleep level decreased: {sleep_level}")
+        start_time = pygame.time.get_ticks()  # reset the sleep timer
+
 
 def check_eat_time():
     if state != State.EAT:
@@ -100,7 +110,12 @@ def check_events():
 
         if event.type == pygame.KEYDOWN and event.key == pygame.K_d: # D SLEEP BUTTOn
             if state == state.IDLE:
-               go_to_sleep()
+                go_to_sleep()
+                global start_time, sleep_level  # reset sleep timer and sleep level
+                start_time = pygame.time.get_ticks()  # start counting sleep time
+                if sleep_level < 5:  # Ensure the sleep level doesn't go beyond 5
+                    sleep_level += 1  # Increase sleep level when kitty goes to sleep
+                print(f"Sleep level increased: {sleep_level}")
             elif state == state.PLAY:
                 move_kitty_right()
 
@@ -163,6 +178,26 @@ def draw_eat_UI():
         y_pos = 240 - new_height
         screen.blit(eatUI, (0, y_pos))
 
+# draw sleep bar 
+def draw_sleep_bar():
+    global sleep_level
+    sleep_images = [
+        "sleepempty.png", 
+        "sleepminus4.png", 
+        "sleepminus3.png", 
+        "sleepminus2.png", 
+        "sleepminus1.png", 
+        "sleepfull.png"
+    ]
+    sleep_img = pygame.image.load(sleep_images[sleep_level]).convert_alpha()
+    sleep_img = pygame.transform.scale(sleep_img, (120, 120))  # resize
+    screen.blit(sleep_img, (220, -45))  # Adjust the position to fit well
+
+
+
+
+
+
 def draw_hunger_bar():
     global hunger_level
     hunger_images = [
@@ -176,7 +211,7 @@ def draw_hunger_bar():
     
     hunger_img = pygame.image.load(hunger_images[hunger_level]).convert_alpha()
     hunger_img = pygame.transform.scale(hunger_img, (120, 120))  # resize
-    screen.blit(hunger_img, (220, -45))  # right middle
+    screen.blit(hunger_img, (0, -45))  # right middle
 
 def draw_feed_me_bubble():
     global hunger_level
@@ -187,7 +222,19 @@ def draw_feed_me_bubble():
         bubble_y = position[1] - 40  # floating above kitty
         screen.blit(feedme_img, (bubble_x, bubble_y))
 
+def draw_sleep_me_bubble():
+    global sleep_level
+    if sleep_level <= 1 and state == State.IDLE:  # only beg when idle and really hungry
+        sleepme_img = pygame.image.load("imsleepy.png").convert_alpha()
+        sleepme_img = pygame.transform.scale(sleepme_img, (100, 70))  # size 
+        bubble_x = position[0] + 100  # slightly to the right of kitty
+        bubble_y = position[1] + 10  # middle of kitty
+        screen.blit(sleepme_img, (bubble_x, bubble_y))
+
+
+
 def draw_sleep_UI():
+
     if state == State.SLEEP:
         sleepUI = pygame.image.load("sleepUI.png").convert_alpha()
 
@@ -337,11 +384,13 @@ def update_animation(): #drawing on the screen
 
 def gameloop():
     global current_frame 
-    global  frame_counter
+    global frame_counter
     global background
     global last_hunger_tick
+    global last_sleep_tick
     global hunger_level
     global show_music_note, music_note_timer
+    global sleep_level
 # game loop
     go_to_idle()
 
@@ -362,6 +411,13 @@ def gameloop():
                 print(f"Hungry... level now {hunger_level}")
             last_hunger_tick = current_time
 
+#       Update sleep level every 60 seconds 
+        current_time = pygame.time.get_ticks()
+        if current_time - last_sleep_tick >= SLEEP_INTERVAL:
+            if sleep_level > 0:
+                sleep_level -= 1
+                print(f"Sleepy... level now {sleep_level}")
+            last_sleep_tick = current_time
         # background
         screen.fill(background)  # baby pink
 
@@ -373,6 +429,8 @@ def gameloop():
         draw_sleep_UI()
         draw_hunger_bar()
         draw_feed_me_bubble()
+        draw_sleep_me_bubble()
+        draw_sleep_bar()
 
         if show_music_note:
             if pygame.time.get_ticks() - music_note_timer < 40:  # .02 second
